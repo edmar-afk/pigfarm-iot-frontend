@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Droplets,
@@ -14,6 +14,8 @@ import {
   Clock3,
   CloudSun,
   Sun,
+  Cloud,
+  CloudRain,
   Wind,
   CircleCheck,
   AlertTriangle,
@@ -195,6 +197,104 @@ function StatCard({ stat, index }) {
 }
 
 function Dashboard() {
+  const [temperature, setTemperature] = useState(null);
+  const [humidity, setHumidity] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchSensorData = async () => {
+      try {
+        const response = await fetch(
+          "https://pigfarmbackend.pythonanywhere.com/api/temperature-humidity/latest/",
+        );
+
+        if (!response.ok) {
+          throw new Error("Django API request failed");
+        }
+
+        const data = await response.json();
+
+        setTemperature(data.temperature);
+        setHumidity(data.humidity);
+        setError("");
+      } catch (error) {
+        console.error("Django connection error:", error);
+        setError("Cannot connect to sensor backend");
+      }
+    };
+
+    fetchSensorData();
+
+    // Update every 3 seconds
+    const interval = setInterval(fetchSensorData, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const getWeatherCondition = () => {
+    if (temperature == null || humidity == null) {
+      return {
+        label: "Waiting for sensor...",
+        icon: CloudSun,
+        iconColor: "text-slate-400",
+      };
+    }
+
+    // Very humid
+    if (humidity >= 80) {
+      if (temperature >= 30) {
+        return {
+          label: "Hot & Humid",
+          icon: CloudRain,
+          iconColor: "text-indigo-500",
+        };
+      }
+
+      return {
+        label: "Humid",
+        icon: Cloud,
+        iconColor: "text-sky-500",
+      };
+    }
+
+    // Hot
+    if (temperature >= 30) {
+      return {
+        label: "Hot",
+        icon: Sun,
+        iconColor: "text-amber-500",
+      };
+    }
+
+    // Comfortable / moderate
+    if (temperature >= 24 && temperature < 30 && humidity >= 50) {
+      return {
+        label: "Partly Cloudy",
+        icon: CloudSun,
+        iconColor: "text-sky-500",
+      };
+    }
+
+    // Cool and relatively dry
+    if (temperature < 24 && humidity < 60) {
+      return {
+        label: "Clear & Cool",
+        icon: Sun,
+        iconColor: "text-amber-500",
+      };
+    }
+
+    // Default
+    return {
+      label: "Cloudy",
+      icon: Cloud,
+      iconColor: "text-slate-500",
+    };
+  };
+
+  const weather = getWeatherCondition();
+  const WeatherIcon = weather.icon;
+
   return (
     <div className="min-h-screen bg-[#f6f8f4] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
@@ -235,7 +335,11 @@ function Dashboard() {
                 {/* Weather icon + status */}
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                    <CloudSun size={25} className="text-sky-500" />
+                    <WeatherIcon
+                      size={75}
+                      strokeWidth={2}
+                      className={weather.iconColor}
+                    />
                   </div>
 
                   <div>
@@ -243,53 +347,33 @@ function Dashboard() {
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                         Pig Pen Temperature
                       </p>
-
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      <span className="text-[10px] font-medium text-emerald-600">
-                        Live
-                      </span>
                     </div>
 
-                    <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                      Partly Cloudy
+                    <p className="mt-0.5 text-xl font-semibold text-slate-800">
+                      {weather.label}
                     </p>
                   </div>
-                </div>
-
-                {/* Temperature */}
-                <div className="text-right">
-                  <p className="text-2xl font-bold tracking-tight text-slate-900">
-                    28°
-                  </p>
-                  <p className="text-[11px] font-medium text-slate-400">
-                    Feels like 29°
-                  </p>
                 </div>
               </div>
 
               {/* Weather details */}
-              <div className="relative mt-4 grid grid-cols-3 gap-2 border-t border-slate-200/70 pt-3">
+              <div className="relative mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-3">
                 <div className="rounded-xl bg-white/70 px-3 py-2">
                   <p className="text-[10px] font-medium text-slate-400">
                     Humidity
                   </p>
                   <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                    76%
+                    {humidity?.toFixed(2) ?? "--"} %
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-white/70 px-3 py-2">
-                  <p className="text-[10px] font-medium text-slate-400">Wind</p>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                    12 km/h
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-white/70 px-3 py-2">
-                  <p className="text-[10px] font-medium text-slate-400">Rain</p>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                    20%
-                  </p>
+                  {/* Temperature */}
+                  <div className="text-right">
+                    <p className="text-xl font-bold tracking-tight text-slate-900">
+                      {temperature?.toFixed(2) ?? "--"} °C
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -348,7 +432,7 @@ function Dashboard() {
                 <div>
                   <p className="text-xs text-emerald-100/50">Active Sensors</p>
                   <p className="mt-1 text-sm font-semibold text-white">
-                    3 / 3 online
+                    1 / 3 online
                   </p>
                 </div>
               </div>
