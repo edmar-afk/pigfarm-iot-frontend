@@ -1,15 +1,9 @@
-/* eslint-disable no-unused-vars */
+
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Droplets,
   Thermometer,
-  Wheat,
-  PiggyBank,
-  TrendingDown,
-  TrendingUp,
-  MoreHorizontal,
-  ArrowUpRight,
   Activity,
   Clock3,
   CloudSun,
@@ -19,78 +13,105 @@ import {
   Wind,
   CircleCheck,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
-const stats = [
-  {
-    title: "Remaining Feed",
-    value: "186.4",
-    unit: "kg",
-    description: "Estimated 4.2 days remaining",
-    percentage: 72,
-    icon: Wheat,
-    trend: "-8.2%",
-    trendLabel: "from last week",
-    trendDown: true,
-    accent: "amber",
-  },
-  {
-    title: "Water Remaining",
-    value: "1,284",
-    unit: "L",
-    description: "Tank capacity: 2,000 L",
-    percentage: 64,
-    icon: Droplets,
-    trend: "+4.6%",
-    trendLabel: "usage efficiency",
-    trendDown: false,
-    accent: "blue",
-  },
-  {
-    title: "Pig Pen Temperature",
-    value: "27.4",
-    unit: "°C",
-    description: "Optimal range: 24–30°C",
-    percentage: 82,
-    icon: Thermometer,
-    trend: "Optimal",
-    trendLabel: "environment status",
-    trendDown: false,
-    accent: "green",
-  },
-];
+const API_BASE = "https://pigfarmbackend.pythonanywhere.com/api";
 
-const recentActivity = [
-  {
-    title: "Feed consumption recorded",
-    description: "12.6 kg consumed",
-    time: "12 min ago",
-    type: "feed",
-  },
-  {
-    title: "Water level updated",
-    description: "Tank level is now at 64%",
-    time: "28 min ago",
-    type: "water",
-  },
-  {
-    title: "Temperature stabilized",
-    description: "Pig Pen returned to optimal range",
-    time: "1 hr ago",
-    type: "temperature",
-  },
-];
+const TEMPERATURE_API = `${API_BASE}/temperature-humidity/latest/`;
+const WATER_LEVEL_API = `${API_BASE}/water-level/latest/`;
 
-function StatCard({ stat, index }) {
-  const Icon = stat.icon;
+// Must match the actual tank height configured on the ESP32.
+const TANK_HEIGHT_CM = 100;
 
-  const accentStyles = {
-    amber: {
-      iconBg: "bg-amber-50",
-      iconText: "text-amber-600",
-      bar: "bg-amber-500",
-      ring: "ring-amber-100",
-    },
+const REFRESH_INTERVAL_MS = 5000;
+
+function formatTime(timestamp) {
+  if (!timestamp) return "Waiting for data";
+
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function getLatestRecord(data) {
+  // Supports either a single object or a non-empty list.
+  if (Array.isArray(data)) {
+    return data.length > 0 ? data[0] : null;
+  }
+
+  return data && typeof data === "object" ? data : null;
+}
+
+function getWeatherCondition(temperature, humidity) {
+  if (temperature == null || humidity == null) {
+    return {
+      label: "Waiting for sensor",
+      icon: CloudSun,
+      color: "text-slate-400",
+    };
+  }
+
+  if (humidity >= 80) {
+    return temperature >= 30
+      ? {
+          label: "Hot and humid",
+          icon: CloudRain,
+          color: "text-indigo-500",
+        }
+      : {
+          label: "Humid",
+          icon: Cloud,
+          color: "text-sky-500",
+        };
+  }
+
+  if (temperature >= 30) {
+    return {
+      label: "Hot",
+      icon: Sun,
+      color: "text-amber-500",
+    };
+  }
+
+  if (temperature >= 24 && humidity >= 50) {
+    return {
+      label: "Partly cloudy",
+      icon: CloudSun,
+      color: "text-sky-500",
+    };
+  }
+
+  if (temperature < 24 && humidity < 60) {
+    return {
+      label: "Cool and dry",
+      icon: Sun,
+      color: "text-amber-500",
+    };
+  }
+
+  return {
+    label: "Cloudy",
+    icon: Cloud,
+    color: "text-slate-500",
+  };
+}
+
+function StatCard({
+  title,
+  value,
+  unit,
+  description,
+  percentage,
+  icon: Icon,
+  color,
+  loading,
+  error,
+  updatedAt,
+}) {
+  const styles = {
     blue: {
       iconBg: "bg-sky-50",
       iconText: "text-sky-600",
@@ -104,93 +125,100 @@ function StatCard({ stat, index }) {
       ring: "ring-emerald-100",
     },
   };
-  const colors = accentStyles[stat.accent];
+
+  const colors = styles[color] || styles.blue;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 25 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.55,
-        delay: index * 0.1,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      whileHover={{
-        y: -5,
-        transition: { duration: 0.2 },
-      }}
-      className="group relative overflow-hidden rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_10px_40px_rgba(15,23,42,0.04)]"
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.35 }}
+      className="relative overflow-hidden rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_10px_40px_rgba(15,23,42,0.04)]"
     >
-      {/* Decorative background */}
-      <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-slate-50 transition-transform duration-500 group-hover:scale-150" />
+      <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-slate-50" />
 
       <div className="relative">
-        <div className="flex items-start justify-between">
+        <div className="flex items-center justify-between">
           <div
             className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors.iconBg} ${colors.iconText} ring-8 ${colors.ring}`}
           >
-            <Icon size={22} strokeWidth={2} />
+            <Icon size={22} />
           </div>
 
-          <button className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700">
-            <MoreHorizontal size={20} />
-          </button>
+          {error ? (
+            <AlertTriangle className="text-amber-500" size={20} />
+          ) : (
+            <Activity className="text-emerald-500" size={20} />
+          )}
         </div>
 
-        <div className="mt-7">
-          <p className="text-sm font-medium text-slate-500">{stat.title}</p>
+        <p className="mt-7 text-sm font-medium text-slate-500">{title}</p>
 
-          <div className="mt-2 flex items-end gap-2">
-            <h3 className="text-[34px] font-semibold tracking-[-0.04em] text-slate-900">
-              {stat.value}
-            </h3>
-            <span className="mb-1.5 text-sm font-medium text-slate-400">
-              {stat.unit}
-            </span>
-          </div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <h3 className="text-[34px] font-semibold tracking-tight text-slate-900">
+            {loading && value == null
+              ? "..."
+              : value == null
+                ? "--"
+                : value}
+          </h3>
 
-          <p className="mt-1 text-xs text-slate-400">{stat.description}</p>
+          <span className="text-sm font-medium text-slate-400">{unit}</span>
         </div>
+
+        <p className="mt-1 text-xs text-slate-400">{description}</p>
 
         <div className="mt-6">
           <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-500">Current level</span>
+            <span className="font-medium text-slate-500">
+              {title === "Water Level" ? "Tank fill level" : "Sensor status"}
+            </span>
+
             <span className="font-semibold text-slate-700">
-              {stat.percentage}%
+              {percentage == null ? "--" : `${percentage.toFixed(1)}%`}
             </span>
           </div>
 
           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${stat.percentage}%` }}
-              transition={{
-                duration: 1,
-                delay: 0.35 + index * 0.1,
-                ease: "easeOut",
+              animate={{
+                width: `${Math.min(100, Math.max(0, percentage ?? 0))}%`,
               }}
+              transition={{ duration: 0.7 }}
               className={`h-full rounded-full ${colors.bar}`}
             />
           </div>
         </div>
 
         <div className="mt-5 flex items-center gap-2">
-          {stat.trendDown ? (
-            <TrendingDown size={15} className="text-amber-500" />
-          ) : (
-            <TrendingUp size={15} className="text-emerald-500" />
-          )}
-
           <span
-            className={`text-xs font-semibold ${
-              stat.trendDown ? "text-amber-600" : "text-emerald-600"
+            className={`h-2 w-2 rounded-full ${
+              error
+                ? "bg-amber-500"
+                : loading
+                  ? "bg-sky-500"
+                  : "bg-emerald-500"
             }`}
-          >
-            {stat.trend}
-          </span>
+          />
 
-          <span className="text-xs text-slate-400">{stat.trendLabel}</span>
+          <span className="text-xs text-slate-500">
+            {error
+              ? "Connection error"
+              : loading
+                ? "Updating..."
+                : "Latest reading received"}
+          </span>
         </div>
+
+        <p className="mt-2 text-xs text-slate-400">
+          Last successful update: {formatTime(updatedAt)}
+        </p>
+
+        {error && (
+          <p className="mt-2 break-words text-xs text-amber-700">{error}</p>
+        )}
       </div>
     </motion.div>
   );
@@ -199,378 +227,435 @@ function StatCard({ stat, index }) {
 function Dashboard() {
   const [temperature, setTemperature] = useState(null);
   const [humidity, setHumidity] = useState(null);
-  const [error, setError] = useState("");
+  const [waterLevel, setWaterLevel] = useState(null);
 
-  useEffect(() => {
-    const fetchSensorData = async () => {
-      try {
-        const response = await fetch(
-          "https://pigfarmbackend.pythonanywhere.com/api/temperature-humidity/latest/",
-        );
+  const [temperatureUpdatedAt, setTemperatureUpdatedAt] = useState(null);
+  const [waterUpdatedAt, setWaterUpdatedAt] = useState(null);
 
-        if (!response.ok) {
-          throw new Error("Django API request failed");
-        }
+  const [temperatureError, setTemperatureError] = useState("");
+  const [waterError, setWaterError] = useState("");
 
-        const data = await response.json();
+  const [temperatureLoading, setTemperatureLoading] = useState(true);
+  const [waterLoading, setWaterLoading] = useState(true);
 
-        setTemperature(data.temperature);
-        setHumidity(data.humidity);
-        setError("");
-      } catch (error) {
-        console.error("Django connection error:", error);
-        setError("Cannot connect to sensor backend");
-      }
-    };
+  const fetchTemperatureData = async () => {
+    try {
+      const response = await fetch(TEMPERATURE_API, {
+        cache: "no-store",
+      });
 
-    fetchSensorData();
-
-    // Update every 3 seconds
-    const interval = setInterval(fetchSensorData, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const getWeatherCondition = () => {
-    if (temperature == null || humidity == null) {
-      return {
-        label: "Waiting for sensor...",
-        icon: CloudSun,
-        iconColor: "text-slate-400",
-      };
-    }
-
-    // Very humid
-    if (humidity >= 80) {
-      if (temperature >= 30) {
-        return {
-          label: "Hot & Humid",
-          icon: CloudRain,
-          iconColor: "text-indigo-500",
-        };
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
 
-      return {
-        label: "Humid",
-        icon: Cloud,
-        iconColor: "text-sky-500",
-      };
-    }
+      const result = await response.json();
+      const data = getLatestRecord(result);
 
-    // Hot
-    if (temperature >= 30) {
-      return {
-        label: "Hot",
-        icon: Sun,
-        iconColor: "text-amber-500",
-      };
-    }
+      if (
+        !data ||
+        data.temperature == null ||
+        data.humidity == null ||
+        !Number.isFinite(Number(data.temperature)) ||
+        !Number.isFinite(Number(data.humidity))
+      ) {
+        throw new Error("No valid temperature/humidity reading found.");
+      }
 
-    // Comfortable / moderate
-    if (temperature >= 24 && temperature < 30 && humidity >= 50) {
-      return {
-        label: "Partly Cloudy",
-        icon: CloudSun,
-        iconColor: "text-sky-500",
-      };
+      setTemperature(Number(data.temperature));
+      setHumidity(Number(data.humidity));
+      setTemperatureUpdatedAt(Date.now());
+      setTemperatureError("");
+    } catch (error) {
+      console.error("Temperature API error:", error);
+      setTemperatureError(error.message || "Unable to load sensor data.");
+    } finally {
+      setTemperatureLoading(false);
     }
-
-    // Cool and relatively dry
-    if (temperature < 24 && humidity < 60) {
-      return {
-        label: "Clear & Cool",
-        icon: Sun,
-        iconColor: "text-amber-500",
-      };
-    }
-
-    // Default
-    return {
-      label: "Cloudy",
-      icon: Cloud,
-      iconColor: "text-slate-500",
-    };
   };
 
-  const weather = getWeatherCondition();
+  const fetchWaterLevelData = async () => {
+    try {
+      const response = await fetch(WATER_LEVEL_API, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const data = getLatestRecord(result);
+
+      if (
+        !data ||
+        data.level_cm == null ||
+        !Number.isFinite(Number(data.level_cm))
+      ) {
+        throw new Error("No valid water-level reading found.");
+      }
+
+      const level = Number(data.level_cm);
+
+      if (level < 0 || level > TANK_HEIGHT_CM) {
+        throw new Error(
+          `Water depth ${level} cm is outside the configured tank height.`
+        );
+      }
+
+      setWaterLevel(level);
+      setWaterUpdatedAt(Date.now());
+      setWaterError("");
+    } catch (error) {
+      console.error("Water-level API error:", error);
+      setWaterError(error.message || "Unable to load water-level data.");
+    } finally {
+      setWaterLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTemperatureData();
+    fetchWaterLevelData();
+
+    const temperatureInterval = setInterval(
+      fetchTemperatureData,
+      REFRESH_INTERVAL_MS
+    );
+
+    const waterInterval = setInterval(
+      fetchWaterLevelData,
+      REFRESH_INTERVAL_MS
+    );
+
+    return () => {
+      clearInterval(temperatureInterval);
+      clearInterval(waterInterval);
+    };
+  }, []);
+
+  const waterPercentage =
+    waterLevel == null ? null : (waterLevel / TANK_HEIGHT_CM) * 100;
+
+  const weather = getWeatherCondition(temperature, humidity);
   const WeatherIcon = weather.icon;
+
+  const overallError = Boolean(temperatureError || waterError);
 
   return (
     <div className="min-h-screen bg-[#f6f8f4] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1600px]">
-        {/* =========================================================
-            HEADER
-        ========================================================== */}
+        {/* Header */}
         <motion.header
           initial={{ opacity: 0, y: -15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
           className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
         >
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]" />
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  overallError ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+              />
 
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
                 Pig Pen Overview
               </span>
             </div>
 
-            <h1 className="text-3xl font-semibold tracking-[-0.04em] text-slate-900 sm:text-4xl">
-              Good morning, Pig Pen Manager.
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+              Pig Pen Monitoring
             </h1>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Here's what's happening across your pig Pig Pen today. Everything
-              looks stable and within the expected range.
+              Monitor water storage, temperature, and humidity using live
+              readings from your ESP32 sensors.
             </p>
           </div>
 
-          <div className="w-full">
-            <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-4 shadow-sm">
-              {/* Decorative glow */}
-              <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-sky-200/30 blur-2xl" />
+          <div className="w-full lg:max-w-sm">
+            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
+                  <WeatherIcon size={25} className={weather.color} />
+                </div>
 
-              <div className="relative flex items-center justify-between gap-4">
-                {/* Weather icon + status */}
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-                    <WeatherIcon
-                      size={75}
-                      strokeWidth={2}
-                      className={weather.iconColor}
-                    />
-                  </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Environment
+                  </p>
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        Pig Pen Temperature
-                      </p>
-                    </div>
-
-                    <p className="mt-0.5 text-xl font-semibold text-slate-800">
-                      {weather.label}
-                    </p>
-                  </div>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">
+                    {weather.label}
+                  </p>
                 </div>
               </div>
 
-              {/* Weather details */}
-              <div className="relative mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-3">
-                <div className="rounded-xl bg-white/70 px-3 py-2">
-                  <p className="text-[10px] font-medium text-slate-400">
-                    Humidity
-                  </p>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                    {humidity?.toFixed(2) ?? "--"} %
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-3">
+                <div>
+                  <p className="text-xs text-slate-400">Temperature</p>
+                  <p className="mt-1 font-semibold text-slate-800">
+                    {temperature == null
+                      ? "--"
+                      : `${temperature.toFixed(1)} °C`}
                   </p>
                 </div>
 
-                <div className="rounded-xl bg-white/70 px-3 py-2">
-                  {/* Temperature */}
-                  <div className="text-right">
-                    <p className="text-xl font-bold tracking-tight text-slate-900">
-                      {temperature?.toFixed(2) ?? "--"} °C
-                    </p>
-                  </div>
+                <div>
+                  <p className="text-xs text-slate-400">Humidity</p>
+                  <p className="mt-1 font-semibold text-slate-800">
+                    {humidity == null ? "--" : `${humidity.toFixed(1)}%`}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         </motion.header>
 
-        {/* =========================================================
-            Pig Pen STATUS BANNER
-        ========================================================== */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-          className="mb-7 overflow-hidden rounded-[28px] bg-[#173B2F] shadow-[0_20px_60px_rgba(23,59,47,0.15)]"
-        >
-          <div className="relative px-6 py-6 sm:px-8">
-            {/* Background decoration */}
-            <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/[0.04]" />
-            <div className="pointer-events-none absolute -bottom-32 right-48 h-72 w-72 rounded-full bg-emerald-400/[0.04]" />
-
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/20">
+        {/* Status banner */}
+        <section className="mb-7 overflow-hidden rounded-[28px] bg-[#173B2F] shadow-lg">
+          <div className="flex flex-col gap-5 px-6 py-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
+                {overallError ? (
+                  <AlertTriangle size={23} />
+                ) : (
                   <CircleCheck size={23} />
-                </div>
-
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-lg font-semibold text-white">
-                      Pig Pen operating normally
-                    </h2>
-
-                    <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-300/20">
-                      All systems good
-                    </span>
-                  </div>
-
-                  <p className="mt-1.5 text-sm text-emerald-100/60">
-                    Feed, water, and environmental conditions are being
-                    monitored continuously.
-                  </p>
-                </div>
+                )}
               </div>
 
-              <div className="flex shrink-0 items-center gap-8">
-                <div>
-                  <p className="text-xs text-emerald-100/50">Last updated</p>
-                  <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-white">
-                    <Clock3 size={14} />
-                    10:42 AM
-                  </div>
-                </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white">
+                  {overallError
+                    ? "Sensor connection needs attention"
+                    : "Pig Pen monitoring active"}
+                </h2>
 
-                <div className="hidden h-10 w-px bg-white/10 sm:block" />
-
-                <div>
-                  <p className="text-xs text-emerald-100/50">Active Sensors</p>
-                  <p className="mt-1 text-sm font-semibold text-white">
-                    1 / 3 online
-                  </p>
-                </div>
+                <p className="mt-1.5 text-sm text-emerald-100/70">
+                  {overallError
+                    ? "One or more sensor APIs could not provide a current reading. Previously received values are retained."
+                    : "Water level, temperature, and humidity are being monitored."}
+                </p>
               </div>
             </div>
-          </div>
-        </motion.div>
 
-        {/* =========================================================
-            STAT CARDS
-        ========================================================== */}
-        <section className="mb-8">
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                Pig Pen resources
-              </h2>
-
-              <p className="mt-1 text-xs text-slate-400">
-                Current inventory and environmental readings
-              </p>
+            <div className="flex items-center gap-2 text-sm text-emerald-100/80">
+              <Clock3 size={16} />
+              Refreshes every 5 seconds
             </div>
-
-            <button className="hidden items-center gap-1 text-xs font-semibold text-emerald-700 transition hover:text-emerald-900 sm:flex">
-              View detailed report
-              <ArrowUpRight size={14} />
-            </button>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {stats.map((stat, index) => (
-              <StatCard key={stat.title} stat={stat} index={index} />
-            ))}
           </div>
         </section>
 
-        {/* =========================================================
-            LOWER CONTENT
-        ========================================================== */}
-        <div className="grid gap-6 xl:grid-cols-[1.45fr_0.8fr]">
-          {/* Resource overview */}
-          <motion.section
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.4 }}
-            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_10px_40px_rgba(15,23,42,0.04)] sm:p-7"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                  Resource overview
-                </h2>
+        {/* Live sensor cards */}
+        <section className="mb-8">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+              Live sensor readings
+            </h2>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  Current Pig Pen capacity utilization
+            <p className="mt-1 text-xs text-slate-400">
+              Latest values received from the Django backend
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <StatCard
+              title="Water Level"
+              value={waterLevel == null ? null : waterLevel.toFixed(2)}
+              unit="cm"
+              description={`Tank height: ${TANK_HEIGHT_CM} cm`}
+              percentage={waterPercentage}
+              icon={Droplets}
+              color="blue"
+              loading={waterLoading}
+              error={waterError}
+              updatedAt={waterUpdatedAt}
+            />
+
+            <StatCard
+              title="Temperature"
+              value={temperature == null ? null : temperature.toFixed(2)}
+              unit="°C"
+              description="Measured by DHT22"
+              percentage={
+                temperature == null
+                  ? null
+                  : Math.min(100, Math.max(0, (temperature / 40) * 100))
+              }
+              icon={Thermometer}
+              color="green"
+              loading={temperatureLoading}
+              error={temperatureError}
+              updatedAt={temperatureUpdatedAt}
+            />
+
+            <StatCard
+              title="Humidity"
+              value={humidity == null ? null : humidity.toFixed(2)}
+              unit="%"
+              description="Measured by DHT22"
+              percentage={humidity}
+              icon={Wind}
+              color="blue"
+              loading={temperatureLoading}
+              error={temperatureError}
+              updatedAt={temperatureUpdatedAt}
+            />
+          </div>
+        </section>
+
+        {/* Water details and sensor status */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+                <Droplets size={22} />
+              </div>
+
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Water Storage
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Ultrasonic sensor measurement
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm text-slate-500">Current water depth</p>
+
+                  <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
+                    {waterLevel == null
+                      ? "--"
+                      : `${waterLevel.toFixed(2)} cm`}
+                  </p>
+                </div>
+
+                <p className="text-lg font-semibold text-sky-600">
+                  {waterPercentage == null
+                    ? "--"
+                    : `${waterPercentage.toFixed(1)}%`}
                 </p>
               </div>
 
-              <button className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50">
-                Today
-              </button>
+              <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-100">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{
+                    width: `${Math.min(100, Math.max(0, waterPercentage ?? 0))}%`,
+                  }}
+                  transition={{ duration: 0.8 }}
+                  className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-600"
+                />
+              </div>
+
+              <div className="mt-3 flex justify-between text-xs text-slate-400">
+                <span>0 cm</span>
+                <span>{TANK_HEIGHT_CM} cm</span>
+              </div>
             </div>
 
-            <div className="mt-8 space-y-7">
-              {/* Feed */}
-              <ResourceRow
-                icon={Wheat}
-                iconClass="bg-amber-50 text-amber-600"
-                title="Feed Inventory"
-                value="186.4 kg"
-                percentage={72}
-                status="Healthy"
-                barClass="bg-amber-500"
-              />
+            <div className="mt-7 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-400">Empty tank distance</p>
+                <p className="mt-1 font-semibold text-slate-800">
+                  {waterLevel == null
+                    ? "--"
+                    : `${(TANK_HEIGHT_CM - waterLevel).toFixed(2)} cm`}
+                </p>
+              </div>
 
-              {/* Water */}
-              <ResourceRow
-                icon={Droplets}
-                iconClass="bg-sky-50 text-sky-600"
-                title="Water Storage"
-                value="1,284 L"
-                percentage={64}
-                status="Healthy"
-                barClass="bg-sky-500"
-              />
-
-              {/* Temperature */}
-              <ResourceRow
-                icon={Thermometer}
-                iconClass="bg-emerald-50 text-emerald-600"
-                title="Temperature"
-                value="27.4°C"
-                percentage={82}
-                status="Optimal"
-                barClass="bg-emerald-500"
-              />
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs text-slate-400">Last successful update</p>
+                <p className="mt-1 font-semibold text-slate-800">
+                  {formatTime(waterUpdatedAt)}
+                </p>
+              </div>
             </div>
 
-            {/* Mini weather section */}
-            <div className="mt-8 grid gap-3 border-t border-slate-100 pt-6 sm:grid-cols-3">
-              <WeatherItem icon={Sun} title="Daylight" value="11h 42m" />
-
-              <WeatherItem icon={Wind} title="Wind" value="12 km/h" />
-
-              <WeatherItem icon={CloudSun} title="Humidity" value="68%" />
-            </div>
+            {waterError && (
+              <p className="mt-4 text-sm text-amber-700">
+                Water API: {waterError}
+              </p>
+            )}
           </motion.section>
 
-          {/* Recent activity */}
           <motion.section
-            initial={{ opacity: 0, y: 25 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.5 }}
-            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-[0_10px_40px_rgba(15,23,42,0.04)] sm:p-7"
+            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
           >
-            <div className="flex items-start justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-                  Recent activity
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Sensor Status
                 </h2>
-
                 <p className="mt-1 text-xs text-slate-400">
-                  Latest Pig Pen events
+                  API connection and data freshness
                 </p>
               </div>
 
-              <button className="text-xs font-semibold text-emerald-700 hover:text-emerald-900">
-                View all
+              <button
+                type="button"
+                onClick={() => {
+                  fetchTemperatureData();
+                  fetchWaterLevelData();
+                }}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                <RefreshCw size={14} />
+                Refresh
               </button>
             </div>
 
-            <div className="mt-7 space-y-1">
-              {recentActivity.map((activity, index) => (
-                <ActivityItem
-                  key={activity.title}
-                  activity={activity}
-                  index={index}
-                />
-              ))}
+            <div className="mt-7 space-y-5">
+              <SensorStatus
+                title="AJ-SR04M Water Sensor"
+                endpoint="/api/water-level/latest/"
+                loading={waterLoading}
+                error={waterError}
+                updatedAt={waterUpdatedAt}
+                value={
+                  waterLevel == null ? "No reading" : `${waterLevel.toFixed(2)} cm`
+                }
+              />
+
+              <SensorStatus
+                title="DHT22 Temperature/Humidity"
+                endpoint="/api/temperature-humidity/latest/"
+                loading={temperatureLoading}
+                error={temperatureError}
+                updatedAt={temperatureUpdatedAt}
+                value={
+                  temperature == null || humidity == null
+                    ? "No reading"
+                    : `${temperature.toFixed(1)} °C / ${humidity.toFixed(1)}%`
+                }
+              />
+            </div>
+
+            <div className="mt-7 rounded-2xl bg-slate-50 p-4">
+              <div className="flex items-start gap-3">
+                <Activity size={18} className="mt-0.5 text-emerald-600" />
+
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Automatic monitoring
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    The dashboard checks both endpoints every five seconds.
+                    If a request fails, the last successfully received value
+                    remains visible until new data arrives.
+                  </p>
+                </div>
+              </div>
             </div>
           </motion.section>
         </div>
@@ -579,118 +664,45 @@ function Dashboard() {
   );
 }
 
-/* =========================================================
-   RESOURCE ROW
-========================================================= */
-
-function ResourceRow({
-  icon: Icon,
-  iconClass,
+function SensorStatus({
   title,
+  endpoint,
+  loading,
+  error,
+  updatedAt,
   value,
-  percentage,
-  status,
-  barClass,
 }) {
   return (
-    <div>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div
-            className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClass}`}
-          >
-            <Icon size={18} />
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-slate-800">{title}</p>
-            <p className="mt-0.5 text-xs text-slate-400">{status}</p>
-          </div>
+    <div className="rounded-2xl border border-slate-100 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800">{title}</p>
+          <p className="mt-1 break-all text-xs text-slate-400">{endpoint}</p>
         </div>
 
-        <div className="text-right">
-          <p className="text-sm font-semibold text-slate-800">{value}</p>
-          <p className="mt-0.5 text-xs text-slate-400">{percentage}%</p>
-        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+            error
+              ? "bg-amber-50 text-amber-700"
+              : loading
+                ? "bg-sky-50 text-sky-700"
+                : "bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {error ? "Error" : loading ? "Loading" : "Responding"}
+        </span>
       </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className={`h-full rounded-full ${barClass}`}
-        />
-      </div>
+      <p className="mt-4 text-lg font-semibold text-slate-900">{value}</p>
+
+      <p className="mt-1 text-xs text-slate-400">
+        Last successful update: {formatTime(updatedAt)}
+      </p>
+
+      {error && (
+        <p className="mt-2 break-words text-xs text-amber-700">{error}</p>
+      )}
     </div>
-  );
-}
-
-/* =========================================================
-   WEATHER ITEM
-========================================================= */
-
-function WeatherItem({ icon: Icon, title, value }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
-        <Icon size={17} />
-      </div>
-
-      <div>
-        <p className="text-[11px] text-slate-400">{title}</p>
-        <p className="mt-0.5 text-xs font-semibold text-slate-700">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   ACTIVITY ITEM
-========================================================= */
-
-function ActivityItem({ activity, index }) {
-  const icons = {
-    feed: Wheat,
-    water: Droplets,
-    temperature: Thermometer,
-  };
-
-  const Icon = icons[activity.type];
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.6 + index * 0.1 }}
-      className="group flex gap-3 rounded-2xl p-3 transition hover:bg-slate-50"
-    >
-      <div className="relative">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-          <Icon size={17} />
-        </div>
-
-        {index !== recentActivity.length - 1 && (
-          <div className="absolute left-1/2 top-12 h-5 w-px -translate-x-1/2 bg-slate-100" />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-col justify-between gap-1 sm:flex-row">
-          <p className="text-xs font-semibold text-slate-800">
-            {activity.title}
-          </p>
-
-          <span className="shrink-0 text-[10px] font-medium text-slate-400">
-            {activity.time}
-          </span>
-        </div>
-
-        <p className="mt-1 text-xs leading-5 text-slate-400">
-          {activity.description}
-        </p>
-      </div>
-    </motion.div>
   );
 }
 
