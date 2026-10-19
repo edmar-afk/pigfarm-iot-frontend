@@ -447,7 +447,7 @@ function Dashboard() {
             </p>
           </div>
 
-          <ServoControl />
+          {/* <ServoControl /> */}
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <StatCard
