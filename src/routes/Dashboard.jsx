@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -15,6 +14,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
+import ServoControl from "../components/ServoControl";
 
 const API_BASE = "https://pigfarmbackend.pythonanywhere.com/api";
 
@@ -157,11 +157,7 @@ function StatCard({
 
         <div className="mt-2 flex items-baseline gap-2">
           <h3 className="text-[34px] font-semibold tracking-tight text-slate-900">
-            {loading && value == null
-              ? "..."
-              : value == null
-                ? "--"
-                : value}
+            {loading && value == null ? "..." : value == null ? "--" : value}
           </h3>
 
           <span className="text-sm font-medium text-slate-400">{unit}</span>
@@ -195,11 +191,7 @@ function StatCard({
         <div className="mt-5 flex items-center gap-2">
           <span
             className={`h-2 w-2 rounded-full ${
-              error
-                ? "bg-amber-500"
-                : loading
-                  ? "bg-sky-500"
-                  : "bg-emerald-500"
+              error ? "bg-amber-500" : loading ? "bg-sky-500" : "bg-emerald-500"
             }`}
           />
 
@@ -298,7 +290,7 @@ function Dashboard() {
 
       if (level < 0 || level > TANK_HEIGHT_CM) {
         throw new Error(
-          `Water depth ${level} cm is outside the configured tank height.`
+          `Water depth ${level} cm is outside the configured tank height.`,
         );
       }
 
@@ -319,13 +311,10 @@ function Dashboard() {
 
     const temperatureInterval = setInterval(
       fetchTemperatureData,
-      REFRESH_INTERVAL_MS
+      REFRESH_INTERVAL_MS,
     );
 
-    const waterInterval = setInterval(
-      fetchWaterLevelData,
-      REFRESH_INTERVAL_MS
-    );
+    const waterInterval = setInterval(fetchWaterLevelData, REFRESH_INTERVAL_MS);
 
     return () => {
       clearInterval(temperatureInterval);
@@ -458,6 +447,8 @@ function Dashboard() {
             </p>
           </div>
 
+          <ServoControl />
+
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             <StatCard
               title="Water Level"
@@ -532,9 +523,7 @@ function Dashboard() {
                   <p className="text-sm text-slate-500">Current water depth</p>
 
                   <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
-                    {waterLevel == null
-                      ? "--"
-                      : `${waterLevel.toFixed(2)} cm`}
+                    {waterLevel == null ? "--" : `${waterLevel.toFixed(2)} cm`}
                   </p>
                 </div>
 
@@ -623,7 +612,9 @@ function Dashboard() {
                 error={waterError}
                 updatedAt={waterUpdatedAt}
                 value={
-                  waterLevel == null ? "No reading" : `${waterLevel.toFixed(2)} cm`
+                  waterLevel == null
+                    ? "No reading"
+                    : `${waterLevel.toFixed(2)} cm`
                 }
               />
 
@@ -650,9 +641,9 @@ function Dashboard() {
                     Automatic monitoring
                   </p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    The dashboard checks both endpoints every five seconds.
-                    If a request fails, the last successfully received value
-                    remains visible until new data arrives.
+                    The dashboard checks both endpoints every five seconds. If a
+                    request fails, the last successfully received value remains
+                    visible until new data arrives.
                   </p>
                 </div>
               </div>
@@ -664,14 +655,7 @@ function Dashboard() {
   );
 }
 
-function SensorStatus({
-  title,
-  endpoint,
-  loading,
-  error,
-  updatedAt,
-  value,
-}) {
+function SensorStatus({ title, endpoint, loading, error, updatedAt, value }) {
   return (
     <div className="rounded-2xl border border-slate-100 p-4">
       <div className="flex items-start justify-between gap-3">
