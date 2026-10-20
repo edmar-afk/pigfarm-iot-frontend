@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -15,6 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import ServoControl from "../components/ServoControl";
+import Topbar from "../components/TopBar";
 
 const API_BASE = "https://pigfarmbackend.pythonanywhere.com/api";
 
@@ -331,327 +333,336 @@ function Dashboard() {
   const overallError = Boolean(temperatureError || waterError);
 
   return (
-    <div className="min-h-screen bg-[#f6f8f4] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1600px]">
-        {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
-        >
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  overallError ? "bg-amber-500" : "bg-emerald-500"
-                }`}
-              />
-
-              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
-                Pig Pen Overview
-              </span>
-            </div>
-
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-              Pig Pen Monitoring
-            </h1>
-
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Monitor water storage, temperature, and humidity using live
-              readings from your ESP32 sensors.
-            </p>
-          </div>
-
-          <div className="w-full lg:max-w-sm">
-            <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
-                  <WeatherIcon size={25} className={weather.color} />
-                </div>
-
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Environment
-                  </p>
-
-                  <p className="mt-1 text-lg font-semibold text-slate-800">
-                    {weather.label}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-3">
-                <div>
-                  <p className="text-xs text-slate-400">Temperature</p>
-                  <p className="mt-1 font-semibold text-slate-800">
-                    {temperature == null
-                      ? "--"
-                      : `${temperature.toFixed(1)} °C`}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-slate-400">Humidity</p>
-                  <p className="mt-1 font-semibold text-slate-800">
-                    {humidity == null ? "--" : `${humidity.toFixed(1)}%`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.header>
-
-        {/* Status banner */}
-        <section className="mb-7 overflow-hidden rounded-[28px] bg-[#173B2F] shadow-lg">
-          <div className="flex flex-col gap-5 px-6 py-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
-                {overallError ? (
-                  <AlertTriangle size={23} />
-                ) : (
-                  <CircleCheck size={23} />
-                )}
-              </div>
-
-              <div>
-                <h2 className="text-lg font-semibold text-white">
-                  {overallError
-                    ? "Sensor connection needs attention"
-                    : "Pig Pen monitoring active"}
-                </h2>
-
-                <p className="mt-1.5 text-sm text-emerald-100/70">
-                  {overallError
-                    ? "One or more sensor APIs could not provide a current reading. Previously received values are retained."
-                    : "Water level, temperature, and humidity are being monitored."}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-emerald-100/80">
-              <Clock3 size={16} />
-              Refreshes every 5 seconds
-            </div>
-          </div>
-        </section>
-
-        {/* Live sensor cards */}
-        <section className="mb-8">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold tracking-tight text-slate-900">
-              Live sensor readings
-            </h2>
-
-            <p className="mt-1 text-xs text-slate-400">
-              Latest values received from the Django backend
-            </p>
-          </div>
-
-          {/* <ServoControl /> */}
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <StatCard
-              title="Water Level"
-              value={waterLevel == null ? null : waterLevel.toFixed(2)}
-              unit="cm"
-              description={`Tank height: ${TANK_HEIGHT_CM} cm`}
-              percentage={waterPercentage}
-              icon={Droplets}
-              color="blue"
-              loading={waterLoading}
-              error={waterError}
-              updatedAt={waterUpdatedAt}
-            />
-
-            <StatCard
-              title="Temperature"
-              value={temperature == null ? null : temperature.toFixed(2)}
-              unit="°C"
-              description="Measured by DHT22"
-              percentage={
-                temperature == null
-                  ? null
-                  : Math.min(100, Math.max(0, (temperature / 40) * 100))
-              }
-              icon={Thermometer}
-              color="green"
-              loading={temperatureLoading}
-              error={temperatureError}
-              updatedAt={temperatureUpdatedAt}
-            />
-
-            <StatCard
-              title="Humidity"
-              value={humidity == null ? null : humidity.toFixed(2)}
-              unit="%"
-              description="Measured by DHT22"
-              percentage={humidity}
-              icon={Wind}
-              color="blue"
-              loading={temperatureLoading}
-              error={temperatureError}
-              updatedAt={temperatureUpdatedAt}
-            />
-          </div>
-        </section>
-
-        {/* Water details and sensor status */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
+    <>
+    <Topbar/>
+      <div className="min-h-screen bg-[#f6f8f4] px-4 py-6 sm:px-6 lg:px-8 pt-32">
+        <div className="mx-auto max-w-[1600px]">
+          {/* Header */}
+          <motion.header
+            initial={{ opacity: 0, y: -15 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
+            className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
-                <Droplets size={22} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Water Storage
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Ultrasonic sensor measurement
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-sm text-slate-500">Current water depth</p>
-
-                  <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
-                    {waterLevel == null ? "--" : `${waterLevel.toFixed(2)} cm`}
-                  </p>
-                </div>
-
-                <p className="text-lg font-semibold text-sky-600">
-                  {waterPercentage == null
-                    ? "--"
-                    : `${waterPercentage.toFixed(1)}%`}
-                </p>
-              </div>
-
-              <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-100">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{
-                    width: `${Math.min(100, Math.max(0, waterPercentage ?? 0))}%`,
-                  }}
-                  transition={{ duration: 0.8 }}
-                  className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-600"
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    overallError ? "bg-amber-500" : "bg-emerald-500"
+                  }`}
                 />
+
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Pig Pen Overview
+                </span>
               </div>
 
-              <div className="mt-3 flex justify-between text-xs text-slate-400">
-                <span>0 cm</span>
-                <span>{TANK_HEIGHT_CM} cm</span>
-              </div>
-            </div>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                Pig Pen Monitoring
+              </h1>
 
-            <div className="mt-7 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-400">Empty tank distance</p>
-                <p className="mt-1 font-semibold text-slate-800">
-                  {waterLevel == null
-                    ? "--"
-                    : `${(TANK_HEIGHT_CM - waterLevel).toFixed(2)} cm`}
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs text-slate-400">Last successful update</p>
-                <p className="mt-1 font-semibold text-slate-800">
-                  {formatTime(waterUpdatedAt)}
-                </p>
-              </div>
-            </div>
-
-            {waterError && (
-              <p className="mt-4 text-sm text-amber-700">
-                Water API: {waterError}
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Monitor water storage, temperature, and humidity using live
+                readings from your ESP32 sensors.
               </p>
-            )}
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Sensor Status
-                </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  API connection and data freshness
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  fetchTemperatureData();
-                  fetchWaterLevelData();
-                }}
-                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-              >
-                <RefreshCw size={14} />
-                Refresh
-              </button>
             </div>
 
-            <div className="mt-7 space-y-5">
-              <SensorStatus
-                title="AJ-SR04M Water Sensor"
-                endpoint="/api/water-level/latest/"
+            <div className="w-full lg:max-w-sm">
+              <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-sky-50 via-white to-emerald-50 p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
+                    <WeatherIcon size={25} className={weather.color} />
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Environment
+                    </p>
+
+                    <p className="mt-1 text-lg font-semibold text-slate-800">
+                      {weather.label}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-3">
+                  <div>
+                    <p className="text-xs text-slate-400">Temperature</p>
+                    <p className="mt-1 font-semibold text-slate-800">
+                      {temperature == null
+                        ? "--"
+                        : `${temperature.toFixed(1)} °C`}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-slate-400">Humidity</p>
+                    <p className="mt-1 font-semibold text-slate-800">
+                      {humidity == null ? "--" : `${humidity.toFixed(1)}%`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.header>
+
+          {/* Status banner */}
+          <section className="mb-7 overflow-hidden rounded-[28px] bg-[#173B2F] shadow-lg">
+            <div className="flex flex-col gap-5 px-6 py-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
+                  {overallError ? (
+                    <AlertTriangle size={23} />
+                  ) : (
+                    <CircleCheck size={23} />
+                  )}
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-semibold text-white">
+                    {overallError
+                      ? "Sensor connection needs attention"
+                      : "Pig Pen monitoring active"}
+                  </h2>
+
+                  <p className="mt-1.5 text-sm text-emerald-100/70">
+                    {overallError
+                      ? "One or more sensor APIs could not provide a current reading. Previously received values are retained."
+                      : "Water level, temperature, and humidity are being monitored."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-emerald-100/80">
+                <Clock3 size={16} />
+                Refreshes every 5 seconds
+              </div>
+            </div>
+          </section>
+
+          {/* Live sensor cards */}
+          <section className="mb-8">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+                Live sensor readings
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-400">
+                Latest values received from the Django backend
+              </p>
+            </div>
+
+            {/* <ServoControl /> */}
+
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <StatCard
+                title="Water Level"
+                value={waterLevel == null ? null : waterLevel.toFixed(2)}
+                unit="cm"
+                description={`Tank height: ${TANK_HEIGHT_CM} cm`}
+                percentage={waterPercentage}
+                icon={Droplets}
+                color="blue"
                 loading={waterLoading}
                 error={waterError}
                 updatedAt={waterUpdatedAt}
-                value={
-                  waterLevel == null
-                    ? "No reading"
-                    : `${waterLevel.toFixed(2)} cm`
-                }
               />
 
-              <SensorStatus
-                title="DHT22 Temperature/Humidity"
-                endpoint="/api/temperature-humidity/latest/"
+              <StatCard
+                title="Temperature"
+                value={temperature == null ? null : temperature.toFixed(2)}
+                unit="°C"
+                description="Measured by DHT22"
+                percentage={
+                  temperature == null
+                    ? null
+                    : Math.min(100, Math.max(0, (temperature / 40) * 100))
+                }
+                icon={Thermometer}
+                color="green"
                 loading={temperatureLoading}
                 error={temperatureError}
                 updatedAt={temperatureUpdatedAt}
-                value={
-                  temperature == null || humidity == null
-                    ? "No reading"
-                    : `${temperature.toFixed(1)} °C / ${humidity.toFixed(1)}%`
-                }
+              />
+
+              <StatCard
+                title="Humidity"
+                value={humidity == null ? null : humidity.toFixed(2)}
+                unit="%"
+                description="Measured by DHT22"
+                percentage={humidity}
+                icon={Wind}
+                color="blue"
+                loading={temperatureLoading}
+                error={temperatureError}
+                updatedAt={temperatureUpdatedAt}
               />
             </div>
+          </section>
 
-            <div className="mt-7 rounded-2xl bg-slate-50 p-4">
-              <div className="flex items-start gap-3">
-                <Activity size={18} className="mt-0.5 text-emerald-600" />
+          {/* Water details and sensor status */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+                  <Droplets size={22} />
+                </div>
 
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    Automatic monitoring
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    The dashboard checks both endpoints every five seconds. If a
-                    request fails, the last successfully received value remains
-                    visible until new data arrives.
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Water Storage
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Ultrasonic sensor measurement
                   </p>
                 </div>
               </div>
-            </div>
-          </motion.section>
+
+              <div className="mt-8">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      Current water depth
+                    </p>
+
+                    <p className="mt-1 text-4xl font-semibold tracking-tight text-slate-900">
+                      {waterLevel == null
+                        ? "--"
+                        : `${waterLevel.toFixed(2)} cm`}
+                    </p>
+                  </div>
+
+                  <p className="text-lg font-semibold text-sky-600">
+                    {waterPercentage == null
+                      ? "--"
+                      : `${waterPercentage.toFixed(1)}%`}
+                  </p>
+                </div>
+
+                <div className="mt-5 h-4 overflow-hidden rounded-full bg-slate-100">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.min(100, Math.max(0, waterPercentage ?? 0))}%`,
+                    }}
+                    transition={{ duration: 0.8 }}
+                    className="h-full rounded-full bg-gradient-to-r from-sky-400 to-blue-600"
+                  />
+                </div>
+
+                <div className="mt-3 flex justify-between text-xs text-slate-400">
+                  <span>0 cm</span>
+                  <span>{TANK_HEIGHT_CM} cm</span>
+                </div>
+              </div>
+
+              <div className="mt-7 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5">
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-400">Empty tank distance</p>
+                  <p className="mt-1 font-semibold text-slate-800">
+                    {waterLevel == null
+                      ? "--"
+                      : `${(TANK_HEIGHT_CM - waterLevel).toFixed(2)} cm`}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <p className="text-xs text-slate-400">
+                    Last successful update
+                  </p>
+                  <p className="mt-1 font-semibold text-slate-800">
+                    {formatTime(waterUpdatedAt)}
+                  </p>
+                </div>
+              </div>
+
+              {waterError && (
+                <p className="mt-4 text-sm text-amber-700">
+                  Water API: {waterError}
+                </p>
+              )}
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[28px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-7"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Sensor Status
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    API connection and data freshness
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchTemperatureData();
+                    fetchWaterLevelData();
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  <RefreshCw size={14} />
+                  Refresh
+                </button>
+              </div>
+
+              <div className="mt-7 space-y-5">
+                <SensorStatus
+                  title="AJ-SR04M Water Sensor"
+                  endpoint="/api/water-level/latest/"
+                  loading={waterLoading}
+                  error={waterError}
+                  updatedAt={waterUpdatedAt}
+                  value={
+                    waterLevel == null
+                      ? "No reading"
+                      : `${waterLevel.toFixed(2)} cm`
+                  }
+                />
+
+                <SensorStatus
+                  title="DHT22 Temperature/Humidity"
+                  endpoint="/api/temperature-humidity/latest/"
+                  loading={temperatureLoading}
+                  error={temperatureError}
+                  updatedAt={temperatureUpdatedAt}
+                  value={
+                    temperature == null || humidity == null
+                      ? "No reading"
+                      : `${temperature.toFixed(1)} °C / ${humidity.toFixed(1)}%`
+                  }
+                />
+              </div>
+
+              <div className="mt-7 rounded-2xl bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Activity size={18} className="mt-0.5 text-emerald-600" />
+
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      Automatic monitoring
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      The dashboard checks both endpoints every five seconds. If
+                      a request fails, the last successfully received value
+                      remains visible until new data arrives.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
